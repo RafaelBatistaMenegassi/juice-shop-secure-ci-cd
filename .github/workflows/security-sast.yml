@@ -1,0 +1,47 @@
+name: "insane-sast-scan" # Integrated Next-Gen SAST Analysis in NodeJs Engines (INSANE)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Required NodeJs version on this project"
+        required: false
+        type: string
+        default: "20"
+      fail-on-severity:
+        description: "Severity level required to break the build (e.g., HIGH, ERROR)"
+        required: false
+        type: string
+        default: "ERROR"
+    secrets:
+      PAT_TOKEN:
+        description: "Access token for reading private dependencies (if necessary)"
+        required: false
+
+jobs:
+  sast-semgrep:
+    name: "semgrep-sast-scan"
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # For uploading SARIF files to the Security tab
+      contents: read
+
+    steps:
+      - name: Checkout the application repository
+        uses: actions/checkout@v4
+
+      - name: Execute Semgrep SAST
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/default
+            p/owasp-top-ten
+            p/security-audit
+            p/javascript
+        continue-on-error: true # SARIF files upload must proceed even if Semgrep finds issues
+
+      - name: Upload SARIF Results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        if: always()

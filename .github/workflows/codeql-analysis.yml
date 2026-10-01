@@ -2,7 +2,13 @@ name: "CodeQL Scan"
 
 on:
   push:
+    branches-ignore:
+      - feature/*
+      - hotfix/*
   pull_request:
+    branches-ignore:
+      - feature/*
+      - hotfix/*
 
 jobs:
   analyze:
@@ -20,7 +26,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
         queries: security-extended
@@ -31,6 +37,6 @@ jobs:
           - exclude:
                id: js/missing-rate-limiting
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
+      uses: github/codeql-action/autobuild@v4
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4

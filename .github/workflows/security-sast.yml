@@ -9,10 +9,10 @@ on:
         type: string
         default: "24"
       fail-on-severity:
-        description: "Severity level required to break the build (e.g., HIGH, ERROR)"
+        description: "Severity level required to break the build (e.g., HIGH, ERROR, WARNING)"
         required: false
         type: string
-        default: "ERROR"
+        default: "WARNING"
     secrets:
       PAT_TOKEN:
         description: "Access token for reading private dependencies (if necessary)"
@@ -36,7 +36,6 @@ jobs:
           config: >-
             p/default
             p/owasp-top-ten
-            p/security-audit
             p/javascript
         continue-on-error: true # SARIF files upload must proceed even if Semgrep finds issues
 

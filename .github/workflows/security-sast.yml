@@ -18,6 +18,9 @@ on:
         description: "Access token for reading private dependencies (if necessary)"
         required: false
 
+  # Enable manual triggering
+  workflow_dispatch:
+
 jobs:
   sast-semgrep:
     name: "semgrep-sast-scan"
@@ -41,7 +44,8 @@ jobs:
         continue-on-error: true
 
       - name: "Upload SARIF Results to GitHub Code Scanning"
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: semgrep.sarif
+          category: "semgrep-sast"

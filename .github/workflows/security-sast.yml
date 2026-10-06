@@ -1,4 +1,4 @@
-name: "insane-sast-scan" # Integrated Next-Gen SAST Analysis in NodeJs Engines (INSANE)
+name: "insane-sast-scan" # Integrated Next-Gen SAST Analysis in NodeJs Ecosystem (INSANE)
 
 on:
   workflow_call:

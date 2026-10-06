@@ -1,10 +1,23 @@
 name: "Standard CI/CD Pipeline"
 
 on:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+      - "feature/**"
+      - "bugfix/**"
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE'
+      - 'data/static/i18n/*.json'
+      - 'frontend/src/assets/i18n/*.json'
   pull_request:
-    branches-ignore:
-      - feature/*
-      - hotfix/*
+    branches:
+      - develop
+      - main
+      - master
     paths-ignore:
       - '*.md'
       - 'LICENSE'

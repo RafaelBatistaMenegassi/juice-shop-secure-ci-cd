@@ -12,7 +12,7 @@ on:
         description: "Severity level required to break the build (e.g., HIGH, ERROR, WARNING)"
         required: false
         type: string
-        default: "WARNING"
+        default: "ERROR"
     secrets:
       PAT_TOKEN:
         description: "Access token for reading private dependencies (if necessary)"

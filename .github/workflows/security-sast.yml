@@ -1,0 +1,51 @@
+name: "insane-sast-scan" # Integrated Next-Gen SAST Analysis in NodeJs Ecosystem (INSANE)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Required NodeJs version on this project"
+        required: false
+        type: string
+        default: "24"
+      fail-on-severity:
+        description: "Severity level required to break the build (e.g., HIGH, ERROR, WARNING)"
+        required: false
+        type: string
+        default: "ERROR"
+    secrets:
+      PAT_TOKEN:
+        description: "Access token for reading private dependencies (if necessary)"
+        required: false
+
+  # Enable manual triggering
+  workflow_dispatch:
+
+jobs:
+  sast-semgrep:
+    name: "semgrep-sast-scan"
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # For uploading SARIF files to the Security tab
+      contents: read
+
+    steps:
+      - name: Checkout the application repository
+        uses: actions/checkout@v4
+
+      - name: "Run Semgrep Native Scan"
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" semgrep/semgrep semgrep scan \
+            --config "p/default" \
+            --config "p/owasp-top-ten" \
+            --config "p/javascript" \
+            --sarif \
+            --output semgrep.sarif
+        continue-on-error: true
+
+      - name: "Upload SARIF Results to GitHub Code Scanning"
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: "semgrep-sast"

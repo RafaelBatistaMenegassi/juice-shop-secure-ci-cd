@@ -1,17 +1,23 @@
-name: "CI/CD Pipeline"
+name: "Standard CI/CD Pipeline"
+
 on:
   push:
-    branches-ignore:
-      - l10n_develop
-      - gh-pages
+    branches:
+      - develop
+      - main
+      - master
+      - "feature/**"
+      - "bugfix/**"
     paths-ignore:
       - '*.md'
       - 'LICENSE'
-      - 'monitoring/grafana-dashboard.json'
-      - 'screenshots/**'
-    tags-ignore:
-      - '*'
+      - 'data/static/i18n/*.json'
+      - 'frontend/src/assets/i18n/*.json'
   pull_request:
+    branches:
+      - develop
+      - main
+      - master
     paths-ignore:
       - '*.md'
       - 'LICENSE'
@@ -22,6 +28,17 @@ env:
   NODE_OPTIONS: "--max_old_space_size=4096"
   CYCLONEDX_NPM_VERSION: '^2.0.0||^3.0.0||^4.0.0'   # keep in sync with package.json
 jobs:
+  # 1st of all: DevSecOps - Reusable Security Workflow Integration
+  sast-security-scan:
+    name: "devsecops-sast-analysis"
+    uses: ./.github/workflows/security-sast.yml
+    permissions:
+      security-events: write
+      contents: read
+    with:
+      node-version: "24"
+      fail-on-severity: "ERROR"
+  # 2nd: Linting checks
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +55,7 @@ jobs:
           npm install --ignore-scripts
       - name: "Lint source code"
         run: npm run lint
+  # 3rd: Coding Challenge RSN (Random Source Noise) check
   coding-challenge-rsn:
     runs-on: windows-latest
     steps:
@@ -51,6 +69,7 @@ jobs:
         run: npm install
       - name: "Check coding challenges for accidental code discrepancies"
         run: npm run rsn
+  # 4th: Frontend unit tests and coverage checks
   frontend-test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -90,6 +109,7 @@ jobs:
           name: frontend-test-lcov
           path: |
             frontend-lcov.info
+  # 5th: Server unit tests and coverage checks
   server-test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -127,6 +147,7 @@ jobs:
           name: server-test-lcov
           path: |
             server-lcov.info
+  # 6th: API integration tests and coverage checks
   api-test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -165,30 +186,6 @@ jobs:
           name: api-test-lcov
           path: |
             api-lcov.info
-  coverage-report:
-    needs: [frontend-test, server-test, api-test]
-    runs-on: ubuntu-latest
-    if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push'
-    steps:
-      - name: "Check out Git repository"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
-      - name: "Download frontend test coverage data"
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 #v4.1.8
-        with:
-          name: frontend-test-lcov
-      - name: "Download server test coverage data"
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 #v4.1.8
-        with:
-          name: server-test-lcov
-      - name: "Download API test coverage data"
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 #v4.1.8
-        with:
-          name: api-test-lcov
-      - name: "Publish coverage to Coveralls"
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          files: frontend-lcov.info server-lcov.info api-lcov.info
   custom-config-test:
     runs-on: ubuntu-latest
     steps:
@@ -218,6 +215,7 @@ jobs:
             NODE_ENV=quiet npm run test:server &&
             NODE_ENV=tutorial npm run test:server &&
             NODE_ENV=unsafe npm run test:server
+  # 7th: End-to-end tests
   e2e-test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -266,6 +264,7 @@ jobs:
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # 8th: Smoke tests - Verify the most critical functionality of the app
   smoke-test:
     runs-on: ubuntu-latest
     env:
@@ -303,6 +302,7 @@ jobs:
           cd ../..
           chmod +x test/smoke/smoke-test.sh
           test/smoke/smoke-test.sh http://localhost:3000
+  # 9th: Smoke tests on Docker - Verify the most critical functionality of the app on a docker env
   docker-test:
     runs-on: ubuntu-latest
     steps:
@@ -310,82 +310,3 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
       - name: "Execute smoke test on Docker"
         run: docker compose -f docker-compose.test.yml up --exit-code-from sut
-  docker:
-    if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master')
-    needs: [frontend-test, server-test, api-test, e2e-test, custom-config-test, docker-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Check out Git repository"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
-      - name: "Set up QEMU"
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf #v3.2.0
-      - name: "Set up Docker Buildx"
-        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 #v3.8.0
-      - name: "Login to DockerHub"
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 #v3.3.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: "Set tag & labels for ${{ github.ref }}"
-        run: |
-          if [ "$GITHUB_REF" == "refs/heads/master" ]; then
-          echo "DOCKER_TAG=latest" >> $GITHUB_ENV
-          else
-          echo "DOCKER_TAG=snapshot" >> $GITHUB_ENV
-          fi
-          echo "VCS_REF=`git rev-parse --short HEAD`" >> $GITHUB_ENV
-          echo "BUILD_DATE=`date -u +”%Y-%m-%dT%H:%M:%SZ”`" >> $GITHUB_ENV
-      - name: "Build and push for AMD64 and ARM64 processors"
-        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 #v6.1.0
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            bkimminich/juice-shop:${{ env.DOCKER_TAG }}
-          build-args: |
-            VCS_REF=${{ env.VCS_REF }}
-            BUILD_DATE=${{ env.BUILD_DATE }}
-            CYCLONEDX_NPM_VERSION=${{ env.CYCLONEDX_NPM_VERSION }}
-  heroku:
-    if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master')
-    needs: [frontend-test, server-test, api-test, e2e-test, custom-config-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Check out Git repository"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
-      - name: "Install Heroku CLI"
-        run: curl https://cli-assets.heroku.com/install.sh | sh
-      - name: "Set Heroku app & branch for ${{ github.ref }}"
-        run: |
-          if [ "$GITHUB_REF" == "refs/heads/master" ]; then
-          echo "HEROKU_APP=juice-shop" >> $GITHUB_ENV
-          echo "HEROKU_BRANCH=master" >> $GITHUB_ENV
-          else
-          echo "HEROKU_APP=juice-shop-staging" >> $GITHUB_ENV
-          echo "HEROKU_BRANCH=develop" >> $GITHUB_ENV
-          fi
-      - name: "Deploy ${{ github.ref }} to Heroku"
-        uses: akhileshns/heroku-deploy@581dd286c962b6972d427fcf8980f60755c15520 #v3.13.15
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ env.HEROKU_APP }}
-          heroku_email: bjoern.kimminich@owasp.org
-          branch: ${{ env.HEROKU_BRANCH }}
-  notify-slack:
-    if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push' && (success() || failure())
-    needs:
-      - docker
-      - heroku
-      - lint
-      - coding-challenge-rsn
-      - smoke-test
-      - coverage-report
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Slack workflow notification"
-        uses: Gamesight/slack-workflow-status@68bf00d0dbdbcb206c278399aa1ef6c14f74347a #v1.3.0
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
